@@ -1,0 +1,496 @@
+####INSTALLING PACKAGES
+
+install.packages("dplyr")
+library (dplyr)
+
+install.packages("tidyverse")
+library(tidyverse)
+
+install.packages("tidyr")
+library(tidyr)
+        
+install.packages("stringr")
+library(stringr)
+
+install.packages("ggplot2")
+library(ggplot2)
+
+install.packages("ggmap")
+library(ggmap) 
+
+install.packages("ggrepel")
+library(ggrepel)
+
+install.packages("ggpubr")
+library(ggpubr)
+
+### READING DATA FROM CSV FILE
+survey <- read.csv("data/TransportCSOfile.csv")
+View(survey)
+attach(survey)
+
+'''
+str(survey)
+summary(survey)
+
+'''
+#rm(list=ls())
+
+### DATA CLEANING
+sur_cols <- colnames(survey)
+##Verifying All column names to remove redundant headings.
+#1. Mode of transport
+pop_mode1 <- sur_cols[10:22]
+pop_mode_substr <-  substring(pop_mode1, 66)
+pop_mode <- str_split_fixed(pop_mode_substr, "_2011",2)[,1]
+pop_mode <- paste("Mode", pop_mode, sep = ":")
+
+#2. Time of travel
+pop_time1 <- sur_cols[23:32]
+pop_time_substr <-  substring(pop_time1, 78)
+pop_time <- str_split_fixed(pop_time_substr, "_2011",2)[,1]
+
+pop_time <- paste ("Time", pop_time, sep = ":")
+
+
+#3. Duration of travel
+pop_journey <- c("<15", "15-30", "30-45", "45-60", "60-90", ">=90", "Not_Stated", "Total")
+pop_journey <- paste ("Duration", pop_journey, sep = ":")
+names(survey)<- c(sur_cols[1:9],pop_mode, pop_time,pop_journey)
+
+colnames(survey)
+
+###Dealing with missing values
+#1. removing na values in ardue electoral div
+survey <- survey %>% filter(SA_NAME!= "")
+str(survey)
+summary(survey)
+
+
+#2.
+if (survey$County == "Dublin City" && survey$Planning.Region =="NA") {
+  survey$Planning.Region <- "Eastern and Midlands"
+}else if (survey$County == "Donegal" &&  survey$Planning.Region == "NA"){
+  survey$Planning.Region <- "North and West"}
+
+
+#3. 
+namode <- which(is.na(`Mode:Total`))
+survey$`Mode:Total`[namode] <-  `Mode:Other`[namode]+`Mode:Private_Transport_Comb`[namode]+
+  `Mode:Public_Transport_Comb`[namode]+`Mode:Soft_Modes_Comb`[namode]
+
+
+
+#4.Removing NA values in the column Time:After_0930
+survey$`Time:After_0930`[is.na(`Time:After_0930`)] <- mean(`Time:After_0930`, na.rm=TRUE)
+#class(`Time:After_0930`)
+survey$`Time:After_0930` <- as.integer(ceiling(`Time:After_0930`))
+
+
+##Removing outlier
+summary(`Duration:<15`) ##Max value is 4010
+maxdur <- which.max(`Duration:<15`)
+survey$`Duration:<15`[maxdur] <- `Duration:Total`[maxdur]-sum(survey[maxdur,34:39]) 
+
+
+
+###DATA ANALYSIS:
+
+#1
+
+sum_mode <-c(sum(survey[, "Mode:Soft_Modes_Comb"]), sum(survey[, "Mode:Other"]), 
+             sum(survey[, "Mode:Public_Transport_Comb"]) , sum(survey[, "Mode:Private_Transport_Comb"]))
+
+
+data1 <- data.frame(
+  modecounts <- names(survey[18:21]),
+  counts <- sum_mode
+  )
+'''
+ggplot (data1, aes(x="", y= counts, fill = fct_inorder(modecounts)))+
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  geom_label_repel(aes(label=scales::percent(counts/sum(counts))), show.legend = F, size =5, nudge_x =1) +
+  theme_classic() +
+  
+  guides(fill = guide_legend(title= "Modes"))
+'''
+
+ggplot(data1)+
+    geom_bar(aes(x="", y=counts/sum(counts), fill =modecounts), stat="identity", width = 1)+
+    coord_polar("y", start=0)+
+    theme_void()+
+    geom_text(aes(x=1, y = (cumsum(counts/sum(counts)) - (counts/sum(counts))/2), 
+                  label=scales::percent(counts/sum(counts)))) 
+
+
+#----done: private modes nationally
+
+sum_pvt <-c(sum(survey[, "Mode:On_Foot"]), sum(survey[, "Mode:Bicycle"]))
+
+
+data11 <- data.frame(
+  natpvt <- names(survey[10:11]),
+  countp <- sum_pvt
+)
+
+
+
+ggplot(data11)+
+  geom_bar(aes(x="", y=countp/sum(countp), fill =natpvt), stat="identity", width = 1)+
+  coord_polar("y", start=0)+
+  theme_void()+
+  geom_text(aes(x=1, y = (cumsum(countp/sum(countp)) - (countp/sum(countp))/2), 
+                label=scales::percent(countp/sum(countp)))) +==
+  guides(fill = guide_legend(title= "Private Modes of Transport"))
+
+
+#2.
+
+#Filtering for county Laioghis
+data21 <- survey %>% filter(County == "Laoighis")   #dataset for further calc
+View(data21)
+
+#All modes of transport in county Laioghis 
+mycounty <-c(sum(data21[, "Mode:Soft_Modes_Comb"]), sum(data21[, "Mode:Other"]), 
+             sum(data21[, "Mode:Public_Transport_Comb"]) , sum(data21[, "Mode:Private_Transport_Comb"]))
+
+summary(mycounty)
+
+cdata <-    data.frame(county_mode <- names(data21[18:21]),
+  count_mode <- mycounty)
+  
+#graph showing all modes for the assigned county
+
+ggplot(cdata)+
+  geom_bar(aes(x="", y=count_mode/sum(count_mode), fill =county_mode), stat="identity", width = 1)+
+  coord_polar("y", start=0)+
+  theme_void()+
+  geom_text(aes(x=1, y = (cumsum(count_mode/sum(count_mode)) - (count_mode/sum(count_mode))/2), 
+                label=scales::percent(count_mode/sum(count_mode)))) +
+  guides(fill = guide_legend(title= "Modes of Transport in Laioghis"))
+
+
+
+#Private modes, for county Laioghis
+pvt_laio <-c(sum(data21[, "Mode:On_Foot"]), sum(data21[, "Mode:Bicycle"]))
+
+
+data22 <- data.frame(
+  namelaio <- names(data21[10:11]),
+  countlaio <- pvt_laio
+)
+
+
+
+ggplot(data22)+
+  geom_bar(aes(x="", y=countlaio/sum(countlaio), fill =namelaio), stat="identity", width = 1)+
+  coord_polar("y", start=0)+
+  theme_void()+
+  geom_text(aes(x=1, y = (cumsum(countlaio/sum(countlaio)) - (countlaio/sum(countlaio))/2), 
+                label=scales::percent(countlaio/sum(countlaio)))) +
+  guides(fill = guide_legend(title= "Most Popular Private Mode of Transport in Laioghis"))
+
+
+
+#3
+#filtering for cities
+city <-  grep(" City", survey$County, value = TRUE)
+
+unique(city)
+
+city_file<- survey %>% filter(County %in% city)
+
+#View(city_file)
+#summary(city_file)
+#write.csv(city_file, file="data/cityfile.csv")
+
+
+#filtering for other regions
+region_file<- survey %>% filter(!County %in% city)
+View(region_file)
+summary(region_file)
+#write.csv(region_file, file="data/regionfile.csv")
+
+
+
+#All modes of transport in  cities
+mycity <-c(sum(city_file[, "Mode:Soft_Modes_Comb"]), sum(city_file[, "Mode:Other"]), 
+             sum(city_file[, "Mode:Public_Transport_Comb"]) , sum(city_file[, "Mode:Private_Transport_Comb"]))
+
+
+citydata <-    data.frame(city_mode <- names(city_file[18:21]),
+                       count_city <- mycity)
+
+#graph showing all modes for the cities
+
+a = ggplot(citydata)+
+  geom_bar(aes(x="", y=count_city/sum(count_city), fill =city_mode), stat="identity", width = 0.3)+
+  coord_polar("y", start=0)+
+  theme_void()+
+  geom_text(aes(x=1, y = (cumsum(count_city/sum(count_city)) - (count_city/sum(count_city))/2), 
+                label=scales::percent(count_city/sum(count_city)))) +
+  guides(fill = guide_legend(title= "Modes of Transport in Cities"))
+
+
+
+#All modes of transport in  regions
+
+myregion <-c(sum(region_file[, "Mode:Soft_Modes_Comb"]), sum(region_file[, "Mode:Other"]), 
+           sum(region_file[, "Mode:Public_Transport_Comb"]) , sum(region_file[, "Mode:Private_Transport_Comb"]))
+
+
+regiondata <-    data.frame(region_mode <- names(region_file[18:21]),
+                          count_region <- myregion)
+
+#graph showing all modes for the assigned county
+
+b = ggplot(regiondata)+
+  geom_bar(aes(x="", y=count_region/sum(count_region), fill =region_mode), stat="identity", width = 0.3)+
+  coord_polar("y", start=0)+
+  theme_void()+
+  geom_text(aes(x=1, y = (cumsum(count_region/sum(count_region)) - (count_region/sum(count_region))/2), 
+                label=scales::percent(count_region/sum(count_region)))) +
+  guides(fill = guide_legend(title= "Modes of Transport in Regions"))
+
+
+finalgraph <- ggarrange(a,b, ncol =1, nrow =2) 
+
+#4. 
+
+
+rush_hr <-c(sum(survey[,27:28]))
+total_time <-c(sum(survey[, "Time:Total"]))  # Assuming "Not Stated" is outside 8-9am
+out_rush <- total_time - rush_hr
+prop_out <- out_rush / total_time
+  
+  data41 <- data.frame(
+    timeprd <- c("Outside 8-9am period", "Inside 8-9am period"),
+    rushtimes <- c(out_rush, rush_hr)
+  )
+
+
+ggplot(data41)+
+  geom_bar(aes(x="", y=rushtimes/sum(rushtimes), fill =timeprd), stat="identity", width = 1)+
+  theme_void()+
+  geom_text(aes(x=1, y = (cumsum(rushtimes/sum(rushtimes))) - (rushtimes/sum(rushtimes))/2), 
+                label=scales::percent(rushtimes/sum(rushtimes))) +
+  guides(fill = guide_legend(title= "Time of people leaving home"))  
+
+
+
+#5
+
+lesser <- c(sum(data21[,33:35]))
+greater <- c(sum(data21[,36:38]))
+#tot_dur <- c(sum("Duration:Total")- sum("Duration:Not_Stated"))
+
+data5 <- data.frame(
+  durationTime <- c("Greater than 45 minutes", "Lesser than 45 minutes"),
+  durTime <- c(greater, lesser)
+)
+
+
+ggplot(data5)+
+  geom_bar(aes(x="", y=durTime/sum(durTime), fill = durationTime), stat="identity", width = 1)+
+  coord_polar("y", start=0)+
+  theme_void()+
+  geom_text(aes(x=1, y = (cumsum(durTime/sum(durTime))) - (durTime/sum(durTime))/2), 
+            label=scales::percent(durTime/sum(durTime))) +
+  guides(fill = guide_legend(title= "Duration of travel"))  
+
+             
+#6
+
+nuts <- unique(data21$NUTS_III)
+class(nuts)
+counties = unique(nutsdata$County)
+nutsdata<- survey %>% filter(NUTS_III == nuts)
+C1<- nutsdata %>% filter(County %in% counties[1])
+C2<- nutsdata %>% filter(County %in% counties[2])
+C3<- nutsdata %>% filter(County %in% counties[3])
+C4<- nutsdata %>% filter(County %in% counties[4])
+
+c1lesser <- c(sum(C1[,33:35]))
+c1greater <- c(sum(C1[,36:38]))
+
+data61 <- data.frame(
+  durationTimec1 <- c("Greater than 45 minutes", "Lesser than 45 minutes"),
+  durTimec1 <- c(c1greater, c1lesser)
+)
+
+c1 <- ggplot(data61)+
+    geom_bar(aes(x="", y=durTimec1/sum(durTimec1), fill = durationTime), stat="identity", width = 1)+
+    coord_polar("y", start=0)+
+    theme_void()+
+    geom_text(aes(x=1, y = (cumsum(durTimec1/sum(durTimec1))) - (durTimec1/sum(durTimec1))/2), 
+              label=scales::percent(durTimec1/sum(durTimec1))) +
+    guides(fill = guide_legend(title= "Duration of travel"))
+
+
+
+c2lesser <- c(sum(C2[,33:35]))
+c2greater <- c(sum(C2[,36:38]))
+
+data62 <- data.frame(
+  durationTimec2 <- c("Greater than 45 minutes", "Lesser than 45 minutes"),
+  durTimeC2 <- c(c2greater, c2lesser)
+)
+
+c2 <- ggplot(data62)+
+      geom_bar(aes(x="", y=durTimeC2/sum(durTimeC2), fill = durationTimec2), stat="identity", width = 1)+
+      coord_polar("y", start=0)+
+      theme_void()+
+      geom_text(aes(x=1, y = (cumsum(durTimeC2/sum(durTimeC2))) - (durTimeC2/sum(durTimeC2))/2), 
+                label=scales::percent(durTimeC2/sum(durTimeC2))) +
+      guides(fill = guide_legend(title= "Duration of travel"))
+
+
+c3lesser <- c(sum(C3[,33:35]))
+c3greater <- c(sum(C3[,36:38]))
+
+data63 <- data.frame(
+  durationTimec3 <- c("Greater than 45 minutes", "Lesser than 45 minutes"),
+  durTimeC3 <- c(c3greater, c3lesser)
+)
+
+c3 <- ggplot(data63)+
+      geom_bar(aes(x="", y=durTimeC3/sum(durTimeC3), fill = durationTimec3), stat="identity", width = 1)+
+      coord_polar("y", start=0)+
+      theme_void()+
+      geom_text(aes(x=1, y = (cumsum(durTimeC3/sum(durTimeC3))) - (durTimeC3/sum(durTimeC3))/2), 
+                label=scales::percent(durTimeC3/sum(durTimeC3))) +
+      guides(fill = guide_legend(title= "Duration of travel"))
+
+
+c4lesser <- c(sum(C4[,33:35]))
+c4greater <- c(sum(C4[,36:38]))
+
+
+graph_nuts <- ggarrange(c1,c2,c3,c4, ncol =2, nrow =2) 
+
+
+#7
+countygroup <- survey %>% 
+               select(County, `Duration:>=90`)
+
+#table(countygroup$County, countygroup$`Duration:>=90`)
+
+countylist <- tapply(countygroup$`Duration:>=90`, countygroup$County , sum)
+
+class(countylist)     ## array
+
+sorted <- countylist[order(-countylist)]
+head(sorted,5)
+
+
+#8
+
+#Considered column Mode:Car_Passenger = 0, for 0 passengers, implying there are only "drivers" commuting to work.
+#We found the sum of commute times in the morning, (until 9:30am)
+#found the fraction of "drivers" during those commute times vs the rest of the population.
+
+
+zero_pass <- survey %>%
+        filter(`Mode:Car_Passenger` ==0) 
+grouped_drivers <- sum(zero_pass[,23:29])
+sum_driver <-  sum(zero_pass[,"Mode:Car_Driver"])
+
+
+data7 <- data.frame(
+  commgroup <- c("total commuters", "1 driver"),
+  sumlength <- c(grouped_drivers, sum_driver)
+)
+
+ggplot(data7)+
+  geom_bar(aes(x="", y=sumlength/sumlength[1], fill = commgroup), stat="identity", width = 1)+
+  coord_polar("y", start=0)+
+  theme_void()+
+  geom_text(aes(x=1, y = (cumsum(sumlength/sum(sumlength))) - (sumlength/sum(sumlength))/2), 
+            label=scales::percent(sumlength/sum(sumlength))) +
+  guides(fill = guide_legend(title= "Commute containing only 1 person"))
+
+
+
+
+
+#9
+
+##Commuting behaviour in terms of modes.
+
+commpvt<-  data21 %>%  select(Electoral.Division.Name,`Mode:Private_Transport_Comb`)
+commpvt1 <- tapply(commpvt$`Mode:Private_Transport_Comb`,commpvt$Electoral.Division.Name,sum)
+commpvt1 <- commpvt1[!is.na(commpvt1)]
+summary(commpvt1)
+commpvt11 <- commpvt1[order(commpvt1)]
+
+
+commpub<-  data21 %>%  select(Electoral.Division.Name,`Mode:Public_Transport_Comb`)
+commpub1 <- tapply(commpub$`Mode:Public_Transport_Comb`,commpub$Electoral.Division.Name,sum)
+commpub1 <- commpub1[!is.na(commpub1)]
+summary(commpub1)
+commpub11 <- commpub1[order(commpub1)]
+
+
+commsoft<-  data21 %>%  select(Electoral.Division.Name,`Mode:Soft_Modes_Comb`)
+commsoft1 <- tapply(commsoft$`Mode:Soft_Modes_Comb`,commsoft$Electoral.Division.Name,sum)
+commsoft1 <- commsoft1[!is.na(commsoft1)]
+summary(commsoft1)
+commsoft11 <- commsoft1[order(commsoft1)]
+
+
+
+
+##Commuting behaviour in terms of time of travel.
+
+timegrp<-  data21 %>% mutate(grpsum = `Time:0801_0830`+`Time:0831_0900`) %>%  select(Electoral.Division.Name,grpsum)
+timegrp1 <- tapply(timegrp$grpsum,timegrp$Electoral.Division.Name,sum)
+timegrp1 <- timegrp1[!is.na(timegrp1)]
+summary(timegrp1)
+timegrp11 <- timegrp1[order(timegrp1)]
+
+##Commuting behaviour in terms of duration of travel.
+
+
+durtravel<-  data21 %>% mutate(dursum = `Duration:45-60` + `Duration:60-90`+`Duration:>=90`) %>% 
+                        select(Electoral.Division.Name, dursum)
+durtravel1 <- tapply(durtravel$dursum, durtravel$Electoral.Division.Name,sum)
+durtravel1 <- durtravel1[!is.na(durtravel1)]
+summary(durtravel1)
+durtravel11 <- durtravel1[order(durtravel1)]
+
+
+
+#10
+
+level_plan <- as.array(levels(Planning.Region))
+#class(level_plan)
+#level_plan[2]
+
+level_plan[level_plan==""] <-"Others"
+
+
+P1 = survey %>% filter(Planning.Region  == level_plan[2]) %>% 
+  select(Electoral.Division.Name,`Mode:Public_Transport_Comb`)
+P1a = tapply(P1$`Mode:Public_Transport_Comb`,P1$Electoral.Division.Name,sum)
+P1a <- head(P1a[order(P1a)],5)
+
+
+P2 = survey %>% filter(Planning.Region == level_plan[3]) %>% 
+  select(Electoral.Division.Name,`Mode:Public_Transport_Comb`)
+P2a = tapply(P2$`Mode:Public_Transport_Comb`,P2$Electoral.Division.Name,sum)
+P2a <- head(P2a[order(P2a)],5)
+
+
+
+P3 = survey %>% filter(Planning.Region == level_plan[4]) %>% 
+  select(Electoral.Division.Name,`Mode:Public_Transport_Comb`)
+P3a = tapply(P3$`Mode:Public_Transport_Comb`,P3$Electoral.Division.Name,sum)
+P3a <- head(P3a[order(P3a)],5)
+
+
+
+P4 = survey %>% filter(Planning.Region == level_plan[5]) %>% 
+  select(Electoral.Division.Name,`Mode:Public_Transport_Comb`)
+P4a = tapply(P4$`Mode:Public_Transport_Comb`,P4$Electoral.Division.Name,sum)
+P4a <- head(P4a[order(P4a)],5)

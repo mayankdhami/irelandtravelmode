@@ -1,0 +1,38 @@
+---
+title: "Report"
+author: "Mayank Dhami"
+date: "04/12/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Reflection
+
+We have to add reflection
+```{r echo=FALSE, eval=FALSE}
+library (dplyr)
+library(tidyverse)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(ggmap) 
+library(ggrepel)
+library(ggpubr)
+```
+
+```{r echo=FALSE}
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

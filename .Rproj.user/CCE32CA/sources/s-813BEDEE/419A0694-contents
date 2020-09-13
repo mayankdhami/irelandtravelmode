@@ -1,0 +1,42 @@
+#Lab13
+#Correlation
+install.packages("ggplot2")
+require(ggplot2)
+x <- c(1,2,3,4,5)
+y <- c(2,4,5,4,5)
+cor(x,y)
+plot(x,y)
+t1 = read.csv("data/DataTest1.csv")
+t2 = read.csv("data/DataTest2.csv")
+t3 = read.csv("data/DataTest3.csv")
+summary(t1)
+cor(t1$X,t1$Y)
+cor(t2$X,t2$Y)
+cor(t3$X,t3$Y)
+plot(t1$X,t1$Y)
+plot(t2$X,t2$Y)
+plot(t3$X,t3$Y)
+#Linear Regression
+lm(y~x)
+my_regression <- lm(y~x)
+summary(my_regression) # Additional results
+confint(my_regression) # 95% confidence intervals
+lm(t1$Y~t1$X)
+lm(t2$Y~t2$X)
+summary(lm(t3$Y~t3$X))
+#Plotting regression line
+plot(t1$X,t1$Y)
+abline(lm(t1$Y~t1$X))
+#Regression Line GGplot2
+dfLR <- data.frame(xvar= x, yvar = y)
+coeffs <- coefficients(my_regression)
+coeffs
+ggplot(dfLR, mapping = aes(x= xvar, y = yvar))+
+  geom_point() +
+  geom_abline(intercept = coeffs[1], slope = coeffs[2], colour = "red") +
+  coord_cartesian(xlim = c(0,6), ylim = c(0,6))
+#Predict values
+newdata <- data.frame(x = 10)
+predict(my_regression, newdata)
+newdata <- data.frame(x = c(2, 3, 7, 10, 12, 15))
+predict(my_regression, newdata)

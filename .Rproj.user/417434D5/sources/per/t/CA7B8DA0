@@ -1,0 +1,26 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1575647534307.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "475852117",
+    "id" : "CA7B8DA0",
+    "lastKnownWriteTime" : 1575650494,
+    "last_content_update" : 1575650493405,
+    "path" : "D:/Mayank_A00268825/code/R_Code.R",
+    "project_path" : "code/R_Code.R",
+    "properties" : {
+        "cursorPosition" : "179,0",
+        "disableDependencyDiscovery" : "1",
+        "scrollLine" : "164"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

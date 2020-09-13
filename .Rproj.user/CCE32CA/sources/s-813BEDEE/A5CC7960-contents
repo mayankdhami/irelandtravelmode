@@ -1,0 +1,627 @@
+---
+title: "Report on Data analysis of Transport Census of Ireland"
+author: "Ansu James"
+date: "06/12/2019"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Abstract
+
+This is an R markdown report on the analysis undertaken, our findings,
+any challenges met, any assumptions made, and any potential issues/weaknesses associated
+with using the dataset for decision making purposes
+
+```{r, results="hide"}
+library ("dplyr")
+library(tidyverse)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(ggmap) 
+library(ggrepel)
+library(ggpubr)
+```
+
+## Findings
+
+
+```{r, results="hide"}
+trans_file <- read.csv("data/TransportCSOfile.csv")
+col_names <- colnames(trans_file)
+##Verifying All column names to remove redundant headings.
+#1. Mode of transport
+pop_mode1 <- col_names[10:22]
+pop_mode_substr <-  substring(pop_mode1, 66)
+pop_mode <- str_split_fixed(pop_mode_substr, "_2011",2)[,1]
+pop_mode <- paste("Mode", pop_mode, sep = ":")
+
+#2. Time of travel
+pop_time1 <- col_names[23:32]
+pop_time_substr <-  substring(pop_time1, 78)
+pop_time <- str_split_fixed(pop_time_substr, "_2011",2)[,1]
+
+pop_time <- paste ("Time", pop_time, sep = ":")
+
+
+#3. Duration of travel
+pop_journey <- c("<15", "15-30", "30-45", "45-60", "60-90", ">=90", "Not_Stated", "Total")
+pop_journey <- paste ("Duration", pop_journey, sep = ":")
+names(trans_file)<- c(col_names[1:9],pop_mode, pop_time,pop_journey)
+
+###Dealing with missing values
+#1. removing na values in ardue electoral div
+trans_file <- trans_file %>% filter(trans_file$SA_NAME!= "")
+str(trans_file)
+summary(trans_file)
+
+
+#2.
+if (trans_file$County == "Dublin City" && trans_file$Planning.Region =="NA") {
+  trans_file$Planning.Region <- "Eastern and Midlands"
+}else if (trans_file$County == "Donegal" &&  trans_file$Planning.Region == "NA"){
+  trans_file$Planning.Region <- "North and West"}
+
+
+#3. 
+namode <- which(is.na(trans_file$`Mode:Total`))
+trans_file$`Mode:Total`[namode] <-  trans_file$`Mode:Other`[namode]+trans_file$`Mode:Private_Transport_Comb`[namode]+
+  trans_file$`Mode:Public_Transport_Comb`[namode]+trans_file$`Mode:Soft_Modes_Comb`[namode]
+
+
+
+#4.Removing NA values in the column Time:After_0930
+trans_file$`Time:After_0930`[is.na(trans_file$`Time:After_0930`)] <- mean(trans_file$`Time:After_0930`, na.rm=TRUE)
+#class(`Time:After_0930`)
+trans_file$`Time:After_0930` <- as.integer(ceiling(trans_file$`Time:After_0930`))
+
+
+##Removing outlier
+summary(trans_file$`Duration:<15`) ##Max value is 4010
+maxdur <- which.max(trans_file$`Duration:<15`)
+trans_file$`Duration:<15`[maxdur] <- trans_file$`Duration:Total`[maxdur]-sum(trans_file[maxdur,34:39]) 
+
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r, results="hide"}
+
+#Q1. Most Popular mode of transport nationally
+
+sum_mode <-c(sum(trans_file[, "Mode:Soft_Modes_Comb"]), sum(trans_file[, "Mode:Other"]), 
+             sum(trans_file[, "Mode:Public_Transport_Comb"]), 
+             sum(trans_file[, "Mode:Private_Transport_Comb"]))
+
+
+data1 <- data.frame(
+  modecounts <- names(trans_file[18:21]),
+  counts <- sum_mode
+  )
+
+q1natmode <- ggplot(data1, aes(x="", y=counts/sum(counts), fill=modecounts)) + geom_bar(stat="identity", width=1) +
+    coord_polar("y", start=0) + 
+    geom_text(aes(label = paste0(round((counts/sum(counts))*100,2), "%")), position = position_stack(vjust = 0.5))+
+    scale_fill_manual(values=c("yellow", "green","orange", "blue", "pink", "cyan"))+ 
+     labs(x = NULL, y = NULL, fill = NULL, title = "Most popular mode of transport nationally")+
+    theme_classic() + theme(axis.line = element_blank(),
+                                        axis.text = element_blank(),
+                                        axis.ticks = element_blank(),
+                                        plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+
+#Now that it has been concluded that the most popular mode is private mode, 
+#we need to find out the most popular mode of private transport nationally
+
+sum_pvt <-c(sum(trans_file[, "Mode:Motorcycle_Scooter"]), sum(trans_file[, "Mode:Car_Driver"]), 
+                sum(trans_file[, "Mode:Car_Passenger"]), sum(trans_file[, "Mode:Van"]))
+
+data11 <- data.frame(
+  natpvt <- names(trans_file[14:17]),
+  countp <- sum_pvt
+)
+
+
+q1pvtmode <- ggplot(data11, aes(x="", y=countp/sum(countp), fill=natpvt)) + geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + 
+  geom_text(aes(label = paste0(round((countp/sum(countp))*100,2), "%")), position = position_stack(vjust = 0.5))+
+  scale_fill_manual(values=c("yellow", "green","orange", "blue", "pink", "cyan"))+ 
+  labs(x = NULL, y = NULL, fill = NULL, title = "Most popular private mode of transport nationally")+
+  theme_classic() + theme(axis.line = element_blank(),
+                          axis.text = element_blank(),
+                          axis.ticks = element_blank(),
+                          plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+
+
+q1final <- ggarrange(q1natmode, q1pvtmode, ncol =1, nrow =2) 
+q1final
+  
+
+```
+
+The most popular mode of transport in Ireland is the Private Mode of Transport with 63% of the population either driving or carpooling to college or place of work. 
+This was the similar statistics for county Laoighis; ~70% of the population are private vehicle users, out of which 60% of them own a car and drive to work. 
+
+```{r}
+#Q2. Assigned county for data analysis : Laoighis
+#Most Popular mode of transport in County Laioghis
+
+data21 <- trans_file %>% filter(County == "Laoighis")   #dataset for further calc
+#View(data21)
+
+#All modes of transport in county Laioghis 
+mycounty <-c(sum(data21[, "Mode:Soft_Modes_Comb"]), sum(data21[, "Mode:Other"]), 
+             sum(data21[, "Mode:Public_Transport_Comb"]) , sum(data21[, "Mode:Private_Transport_Comb"]))
+
+summary(mycounty)
+
+cdata <-    data.frame(county_mode <- names(data21[18:21]),
+  count_mode <- mycounty)
+  
+#graph showing the most popular mode of transport for the assigned county
+
+q2natmode <- ggplot(cdata, aes(x="", y=count_mode/sum(count_mode), fill=county_mode)) + 
+             geom_bar(stat="identity", width=1) +
+             coord_polar("y", start=0) + 
+             geom_text(aes(label = paste0(round((count_mode/sum(count_mode))*100,2), "%")), 
+                       position = position_stack(vjust = 0.5))+
+             scale_fill_manual(values=c("yellow", "green","orange", "blue", "pink", "cyan"))+ 
+             labs(x = NULL, y = NULL, fill = NULL, title = "Most popular mode of transport in Laioghis")+
+             theme_classic() + theme(axis.line = element_blank(),
+                                    axis.text = element_blank(),
+                                    axis.ticks = element_blank(),
+                                    plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+
+
+
+#Verifying for the most popular mode of private transport, for county Laioghis
+pvt_laio <-c(sum(data21[, "Mode:Motorcycle_Scooter"]), sum(data21[, "Mode:Car_Driver"]), 
+             sum(data21[, "Mode:Car_Passenger"]), sum(data21[, "Mode:Van"]))
+
+
+data22 <- data.frame(
+  namelaio <- names(data21[14:17]),
+  countlaio <- pvt_laio
+)
+
+q2pvtmode <- ggplot(data22, aes(x="", y=countlaio/sum(countlaio), fill=namelaio)) + 
+            geom_bar(stat="identity", width=1) +
+            coord_polar("y", start=0) + 
+            geom_text(aes(label = paste0(round((countlaio/sum(countlaio))*100,2), "%")), 
+                      position = position_stack(vjust = 0.5))+
+            scale_fill_manual(values=c("yellow", "green","orange", "blue", "pink", "cyan"))+ 
+            labs(x = NULL, y = NULL, fill = NULL, title = "Most popular private mode of transport in Laioghis")+
+            theme_classic() + theme(axis.line = element_blank(),
+                          axis.text = element_blank(),
+                          axis.ticks = element_blank(),
+                          plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+q2final <- ggarrange(q2natmode, q2pvtmode, ncol =1, nrow =2) 
+q2final
+```
+
+```{r}
+#Q3. Choice of transportation in Cities vs Regions
+#filtering for cities
+city <-  grep(" City", trans_file$County, value = TRUE)
+
+unique(city)
+
+city_file<- trans_file %>% filter(County %in% city)
+
+#View(city_file)
+#summary(city_file)
+#write.csv(city_file, file="data/cityfile.csv")
+
+
+#filtering for other regions
+region_file<- trans_file %>% filter(!County %in% city)
+#View(region_file)
+summary(region_file)
+#write.csv(region_file, file="data/regionfile.csv")
+
+
+
+#All modes of transport in  cities
+mycity <-c(sum(city_file[, "Mode:Soft_Modes_Comb"]), sum(city_file[, "Mode:Other"]), 
+             sum(city_file[, "Mode:Public_Transport_Comb"]) , sum(city_file[, "Mode:Private_Transport_Comb"]))
+
+
+citydata <-    data.frame(city_mode <- names(city_file[18:21]),
+                       count_city <- mycity)
+
+#graph showing all modes for the cities
+
+a <- ggplot(citydata, aes(x="", y=count_city/sum(count_city), fill=city_mode)) + 
+     geom_bar(stat="identity", width=1) +
+     coord_polar("y", start=0) + 
+     geom_text(aes(label = paste0(round((count_city/sum(count_city))*100,2), "%")), position = position_stack(vjust = 0.5))+
+     scale_fill_manual(values=c("yellow", "green","orange", "blue", "pink", "cyan"))+ 
+     labs(x = NULL, y = NULL, fill = NULL, title = " choice of transportation in the cities ")+
+     theme_classic() + theme(axis.line = element_blank(),
+                          axis.text = element_blank(),
+                          axis.ticks = element_blank(),
+                          plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+
+#All modes of transport in  regions
+
+myregion <-c(sum(region_file[, "Mode:Soft_Modes_Comb"]), sum(region_file[, "Mode:Other"]), 
+           sum(region_file[, "Mode:Public_Transport_Comb"]) , sum(region_file[, "Mode:Private_Transport_Comb"]))
+
+
+regiondata <-    data.frame(region_mode <- names(region_file[18:21]),
+                          count_region <- myregion)
+
+#graph showing all modes for regions
+
+b <-  ggplot(regiondata, aes(x="", y=count_region/sum(count_region), fill=region_mode)) + 
+      geom_bar(stat="identity", width=1) +
+      coord_polar("y", start=0) + 
+      geom_text(aes(label = paste0(round((count_region/sum(count_region))*100,2), "%")), 
+                position = position_stack(vjust = 0.5))+
+      scale_fill_manual(values=c("yellow", "green","orange", "blue", "pink", "cyan"))+ 
+      labs(x = NULL, y = NULL, fill = NULL, title = " choice of transportation in the regions ")+
+      theme_classic() + theme(axis.line = element_blank(),
+                          axis.text = element_blank(),
+                          axis.ticks = element_blank(),
+                          plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+finalgraph <- ggarrange(a,b, ncol =1, nrow =2)
+finalgraph
+```
+
+There is a substantial difference between the transport modes in the regions and the cities.
+While 67% of commuters in the regions used Private Transport, just 43% of commuters depended on private transport in the cities.  
+
+
+```{r}
+#Q4. Proportion of commuters who leave home outside of the 8-9am rush hour 
+
+rush_hr <-c(sum(trans_file[,27:28]))
+total_time <-c(sum(trans_file[, "Time:Total"]))  # Assuming "Not Stated" is outside 8-9am
+out_rush <- total_time - rush_hr
+prop_out <- out_rush / total_time
+  
+  data41 <- data.frame(
+    timeprd <- c("Outside 8-9am period", "Inside 8-9am period"),
+    rushtimes <- c(out_rush, rush_hr)
+  )
+rush_plot <- ggplot(data41, aes(x="", y=rushtimes/sum(rushtimes), fill=timeprd)) + geom_bar(stat="identity", width=1) +
+    coord_polar("y", start=0) + 
+    geom_text(aes(label = paste0(round((rushtimes/sum(rushtimes))*100,2), "%")), position = position_stack(vjust = 0.5))+
+    scale_fill_manual(values=c("pink", "cyan"))+ 
+    labs(x = NULL, y = NULL, fill = NULL, title = " Time  of people leaving home ")+
+    theme_classic() + theme(axis.line = element_blank(),
+                            axis.text = element_blank(),
+                            axis.ticks = element_blank(),
+                            plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+rush_plot
+
+```
+#### 	45% of the commuters leave home during the rush hour of 8-9 am. 
+
+```{r}
+#Q5. Likelihood of commuters in Laoighis travelling for longer than 45 minutes each morning
+
+morntravel <- sum(data21[,23:29])
+greater <- c(sum(data21[,36:38]))
+
+data5 <- data.frame(
+  durationTime <- c("Greater than 45 minutes", "Lesser than 45 minutes"),
+  durTime <- c(greater, morntravel)
+)
+
+
+likely <- ggplot(data5, aes(x="", y=durTime/sum(durTime), fill=durationTime)) + 
+          geom_bar(stat="identity", width=0.3) +
+          geom_text(aes(label = paste0(round((durTime/sum(durTime))*100,2), "%")), 
+                    position = position_stack(vjust = 0.5))+
+          scale_fill_manual(values=c("pink", "orange"))+ 
+          labs(x = NULL, y = NULL, fill = NULL, title = " Duration of travel: 45 minutes ")+
+          theme_classic() + theme(axis.line = element_blank(),
+                                  axis.text = element_blank(),
+                                  axis.ticks = element_blank(),
+                                  plot.title = element_text(hjust = 0.5, color = "#666666"))
+        
+likely
+```
+
+Interestingly, just 15.3% of commuters are likely to travel longer than 45 minutes each morning.
+
+```{r}
+#Q6. Comparison of Q5 with other counties in the same NUTS III region
+
+#Finding the NUTSIII of my county - Laioghis
+nuts <- unique(data21$NUTS_III)    # Midlands
+
+#Finding its class
+class(nuts)
+
+#Checking for the same NUTSIII region in the original dataset
+nutsdata<- trans_file %>% filter(NUTS_III == nuts)
+
+#Extracting unique counties under NUTSIII- Midlands
+counties = unique(nutsdata$County)
+
+#Extracting each county
+C1<- nutsdata %>% filter(County %in% counties[1])
+C2<- nutsdata %>% filter(County %in% counties[2])
+C3<- nutsdata %>% filter(County %in% counties[3])
+C4<- nutsdata %>% filter(County %in% counties[4])
+
+
+c1lesser <- c(sum(C1[,33:35]))
+c1greater <- c(sum(C1[,36:38]))
+
+data61 <- data.frame(
+  durationTimec1 <- c("Greater than 45 minutes", "Lesser than 45 minutes"),
+  durTimec1 <- c(c1greater, c1lesser)
+)
+
+c1 <- 
+  ggplot(data61, aes(x="", y=durTimec1/sum(durTimec1), fill=durationTime)) + geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) +
+  geom_text(aes(label = paste0(round((durTimec1/sum(durTimec1))*100,2), "%")), position = position_stack(vjust = 0.5))+
+  scale_fill_manual(values=c("orange", "cyan"))+ 
+  labs(x = NULL, y = NULL, fill = NULL, title = counties[1])+
+  theme_classic() + theme(axis.line = element_blank(),
+                          axis.text = element_blank(),
+                          axis.ticks = element_blank(),
+                          plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+
+
+c2lesser <- c(sum(C2[,33:35]))
+c2greater <- c(sum(C2[,36:38]))
+
+data62 <- data.frame(
+  durationTimec2 <- c("Greater than 45 minutes", "Lesser than 45 minutes"),
+  durTimec2 <- c(c2greater, c2lesser)
+)
+
+c2 <-   ggplot(data62, aes(x="", y=durTimec2/sum(durTimec2), fill=durationTime)) + geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) +
+  geom_text(aes(label = paste0(round((durTimec2/sum(durTimec2))*100,2), "%")), position = position_stack(vjust = 0.5))+
+  scale_fill_manual(values=c("orange", "cyan"))+ 
+  labs(x = NULL, y = NULL, fill = NULL, title = counties[2])+
+  theme_classic() + theme(axis.line = element_blank(),
+                          axis.text = element_blank(),
+                          axis.ticks = element_blank(),
+                          plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+
+c3lesser <- c(sum(C3[,33:35]))
+c3greater <- c(sum(C3[,36:38]))
+
+data63 <- data.frame(
+  durationTimec3 <- c("Greater than 45 minutes", "Lesser than 45 minutes"),
+  durTimec3 <- c(c3greater, c3lesser)
+)
+
+c3 <- ggplot(data63, aes(x="", y=durTimec3/sum(durTimec3), fill=durationTime)) + geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) +
+  geom_text(aes(label = paste0(round((durTimec3/sum(durTimec3))*100,2), "%")), position = position_stack(vjust = 0.5))+
+  scale_fill_manual(values=c("orange", "cyan"))+ 
+  labs(x = NULL, y = NULL, fill = NULL, title = counties[3])+
+  theme_classic() + theme(axis.line = element_blank(),
+                          axis.text = element_blank(),
+                          axis.ticks = element_blank(),
+                          plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+
+
+c4lesser <- c(sum(C4[,33:35]))
+c4greater <- c(sum(C4[,36:38]))
+
+data64 <- data.frame(
+  durationTimec4 <- c("Greater than 45 minutes", "Lesser than 45 minutes"),
+  durTimec4 <- c(c4greater, c4lesser)
+)
+
+c4 <- ggplot(data64, aes(x="", y=durTimec4/sum(durTimec4), fill=durationTime)) + geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) +
+  geom_text(aes(label = paste0(round((durTimec4/sum(durTimec4))*100,2), "%")), position = position_stack(vjust = 0.5))+
+  scale_fill_manual(values=c("orange", "cyan"))+ 
+  labs(x = NULL, y = NULL, fill = NULL, title = counties[4])+
+  theme_classic() + theme(axis.line = element_blank(),
+                          axis.text = element_blank(),
+                          axis.ticks = element_blank(),
+                          plot.title = element_text(hjust = 0.5, color = "#666666"))
+
+graph_nuts <- ggarrange(c1,c2,c3,c4, ncol =2, nrow =2) 
+graph_nuts
+```
+
+All counties in the NUTSIII region of Midlands have majority of its commuters travelling for lesser than 45 minutes.
+
+```{r}
+#Q7. Finding the top five counties that experience the longest commute times
+countygroup <- trans_file %>% 
+               select(County, `Duration:>=90`)
+
+#table(countygroup$County, countygroup$`Duration:>=90`)
+
+countylist <- tapply(countygroup$`Duration:>=90`, countygroup$County , sum)
+
+class(countylist)     ## array
+
+sorted <- countylist[order(-countylist)]
+print("Displaying the five counties with the longest commute times")
+print(head(sorted,5))
+print("Displaying on a graph")
+barplot(head(sorted,5), main = "Counties with the longest commute times", 
+        xlab= "County", ylab= "Count of people")
+```
+
+Fingal, Meath, Kildare, Dublin City and Cork County experience the longest commute times.
+
+```{r}
+#Q8. Proportion of cars with no passengers, from the commuters in the morning
+
+#Considered column Mode:Car_Passenger = 0, for 0 passengers, implying there are only "drivers" commuting to work.
+#We found the sum of commute times in the morning, (until 9:30am)
+#found the fraction of "drivers" during those commute times vs the rest of the population.
+
+
+zero_pass <- trans_file %>%
+        filter(`Mode:Car_Passenger` ==0) 
+grouped_drivers <- sum(zero_pass[,23:29])
+sum_driver <-  sum(zero_pass[,"Mode:Car_Driver"])
+
+
+data7 <- data.frame(
+  commgroup <- c("total commuters", "1 driver"),
+  sumlength <- c(grouped_drivers, sum_driver)
+)
+
+
+q8pass <- ggplot(data7, aes(x="", y=sumlength/sum(sumlength[1]), fill=commgroup)) + geom_bar(stat="identity", width=0.2) +
+  geom_text(aes(label = paste0(round(sumlength/sum(sumlength)*100,2), "%")), position = position_stack(vjust = 0.5))+
+  scale_fill_manual(values=c("orange", "cyan"))+ 
+  labs(x = NULL, y = NULL, fill = NULL, title = "Commute containing only 1 person")+
+  theme_classic() + theme(axis.line = element_blank(),
+                          axis.text = element_blank(),
+                          axis.ticks = element_blank(),
+                          plot.title = element_text(hjust = 0.5, color = "#666666"))
+q8pass
+
+
+```
+
+Only 15% of the population drive to their workplace or college
+
+```{r}
+#Q9. Checking for substantial differences in commuting behaviour(if any) within different areas of Laoighis
+
+##Commuting behaviour in terms of modes.
+
+commpvt<-  data21 %>%  select(Electoral.Division.Name,`Mode:Private_Transport_Comb`)
+commpvt1 <- tapply(commpvt$`Mode:Private_Transport_Comb`,commpvt$Electoral.Division.Name,sum)
+commpvt1 <- commpvt1[!is.na(commpvt1)]
+summary(commpvt1)
+commpvt11 <- commpvt1[order(commpvt1)]
+apvt <-  commpvt11[commpvt11 < mean(commpvt11)]
+print("Areas within Laioghis with proporion of private transport users, less than average")
+names(apvt)
+
+commpub<-  data21 %>%  select(Electoral.Division.Name,`Mode:Public_Transport_Comb`)
+commpub1 <- tapply(commpub$`Mode:Public_Transport_Comb`,commpub$Electoral.Division.Name,sum)
+commpub1 <- commpub1[!is.na(commpub1)]
+summary(commpub1)
+commpub11 <- commpub1[order(commpub1)]
+apub <-  commpub11[commpub11 < mean(commpub11)]
+print("Areas within Laioghis with proporion of public transport users, less than average")
+names(apub)
+
+
+commsoft<-  data21 %>%  select(Electoral.Division.Name,`Mode:Soft_Modes_Comb`)
+commsoft1 <- tapply(commsoft$`Mode:Soft_Modes_Comb`,commsoft$Electoral.Division.Name,sum)
+commsoft1 <- commsoft1[!is.na(commsoft1)]
+summary(commsoft1)
+commsoft11 <- commsoft1[order(commsoft1)]
+asoft <-  commsoft11[commsoft11 < mean(commsoft11)]
+print("Areas within Laioghis with proporion of soft mode transport users, less than average")
+names(asoft)
+
+##Commuting behaviour in terms of time of travel.
+
+timegrp<-  data21 %>% mutate(grpsum = `Time:0801_0830`+`Time:0831_0900`) %>%  select(Electoral.Division.Name,grpsum)
+timegrp1 <- tapply(timegrp$grpsum,timegrp$Electoral.Division.Name,sum)
+timegrp1 <- timegrp1[!is.na(timegrp1)]
+summary(timegrp1)
+timegrp11 <- timegrp1[order(timegrp1)]
+b_rush <-  timegrp11[timegrp11 < mean(timegrp11)]
+print("Areas within Laioghis with proporion of commuters travelling during the rush hour period of 8-9am, less than average")
+names(b_rush)
+
+
+##Commuting behaviour in terms of duration of travel.
+
+durtravel<-  data21 %>% mutate(dursum = `Duration:45-60` + `Duration:60-90`+`Duration:>=90`) %>% 
+                        select(Electoral.Division.Name, dursum)
+durtravel1 <- tapply(durtravel$dursum, durtravel$Electoral.Division.Name,sum)
+durtravel1 <- durtravel1[!is.na(durtravel1)]
+summary(durtravel1)
+durtravel11 <- durtravel1[order(durtravel1)]
+c_greater <-  durtravel11[durtravel11 < mean(durtravel11)]
+print("Areas within Laioghis with proporion of commuters travelling for longer than 45 minutes, less than average")
+names(c_greater)
+```
+
+```{r}
+#Q10. Verifying for Electoral Divisions within each Planning Region with least investment for public transportation 
+
+level_plan <- as.array(levels(trans_file$Planning.Region))
+#class(level_plan)
+#level_plan[2]
+
+level_plan[level_plan==""] <-"Others"
+
+
+P1 = trans_file %>% filter(Planning.Region  == level_plan[2]) %>% 
+  select(Electoral.Division.Name,`Mode:Public_Transport_Comb`)
+P1a = tapply(P1$`Mode:Public_Transport_Comb`,P1$Electoral.Division.Name,sum)
+P1a <- head(P1a[order(P1a)],5)
+
+
+P2 = trans_file %>% filter(Planning.Region == level_plan[3]) %>% 
+  select(Electoral.Division.Name,`Mode:Public_Transport_Comb`)
+P2a = tapply(P2$`Mode:Public_Transport_Comb`,P2$Electoral.Division.Name,sum)
+P2a <- head(P2a[order(P2a)],5)
+
+
+P3 = trans_file %>% filter(Planning.Region == level_plan[4]) %>% 
+  select(Electoral.Division.Name,`Mode:Public_Transport_Comb`)
+P3a = tapply(P3$`Mode:Public_Transport_Comb`,P3$Electoral.Division.Name,sum)
+P3a <- head(P3a[order(P3a)],5)
+
+
+P4 = trans_file %>% filter(Planning.Region == level_plan[5]) %>% 
+  select(Electoral.Division.Name,`Mode:Public_Transport_Comb`)
+P4a = tapply(P4$`Mode:Public_Transport_Comb`,P4$Electoral.Division.Name,sum)
+P4a <- head(P4a[order(P4a)],5)
+
+
+
+print("Planning Region:")
+print(level_plan[2])
+print(P1a)
+
+print("Planning Region:")
+print(level_plan[3])
+print(P2a)
+
+print("Planning Region:")
+print(level_plan[4])
+print(P3a)
+
+print("Planning Region:")
+print(level_plan[5])
+print(P4a)
+```
+
+### Challenges met
+Placing the text labels within each fraction of the pie chart is a tedious task for a beginner.
+
+It was difficult to decode the role/ meaning of few columns such as SA_NAME and columns such as Total, Not Stated in the Time and Mode of Travel categories. Hence having a data dictionary attached with dataset would have made the analysis a much easier task. 
+
+### Assumptions made
+##### It was a difficult to conclude what comprised the “longest” commute times for each county.
+##### The “length” of the time period could either be the sum of all time periods of travel or the cumulative sum of the population whose duration of travel extends for 1.5 hours or more. 
+
+
+
+### Potential issues/weaknesses associated with using the dataset for decision-making purposes.
+
+##### There have been few issues faced with the dataset during the analysis.
+##### Irrelevant Information in Commuting Behaviour
+##### The mode of transport includes a column “Other”. This column is ambiguous as it is not clear what modes can be included under “Order”, as all possible modes of transport have been included in the dataset. Hence, it leads to the user having to exclude it from the “Total” to calculate any valid totals.
+##### In other words, the column is a futile addition to the dataset.
+##### Similarly the columns “Not Stated” under the Time of Travel category and the Journey of Travel categories respectively can be rendered additional information and ineffective for data analysis.
+##### Say, for example, when we need to calculate the time of travel outside the rush hour period, it was impractical to consider “Not Stated”. So therefore it was calculated as outside the rush hour period due to the sole reason that it was not specifically mentioned to be so. Thus, the column should have been removed from the dataset primarily. 

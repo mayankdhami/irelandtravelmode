@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1575647535590.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "202589007",
+    "id" : "FFCE9E22",
+    "lastKnownWriteTime" : 1575650688,
+    "last_content_update" : 1575650686279,
+    "path" : "D:/Mayank_A00268825/code/Report_MD.rmd",
+    "project_path" : "code/Report_MD.rmd",
+    "properties" : {
+        "cursorPosition" : "548,251",
+        "scrollLine" : "532"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

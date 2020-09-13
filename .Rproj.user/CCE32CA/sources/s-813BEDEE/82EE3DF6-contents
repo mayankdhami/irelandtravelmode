@@ -1,0 +1,25 @@
+---
+title: "Report on Transport Survey of Ireland"
+author: "Mayank Dhami"
+date: "04/12/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r survey}
+summary(survey)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+```{r, echo=FALSE}
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
